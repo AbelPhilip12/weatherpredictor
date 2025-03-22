@@ -337,8 +337,8 @@ class WeatherPredictor:
                     'sunset': api_data['sunset'],
                     'min_temp': round(float(daily_temps[date_key]['min_temp']), 1),
                     'max_temp': round(float(daily_temps[date_key]['max_temp']), 1),
-                    'prediction_made_at': current_time.isoformat(),
-                    'prediction_date': date_key  # Add date in YYYY-MM-DD format for easier querying
+                    'prediction_made_at': current_time.isoformat()
+                    # Removed 'prediction_date' since this column doesn't exist in the database
                 }
                 
                 predictions.append(prediction)
@@ -374,7 +374,7 @@ class WeatherPredictor:
         print("[DEBUG] Grouping predictions by date")
         date_groups = {}
         for pred in predictions:
-            # Extract date from datetime
+            # Extract date from datetime field
             pred_date = pred['datetime'].split('T')[0]
             if pred_date not in date_groups:
                 date_groups[pred_date] = []
@@ -383,12 +383,17 @@ class WeatherPredictor:
         return date_groups
 
     def delete_predictions_for_date(self, date):
-        """Delete all predictions for a specific date using date string comparison"""
+        """Delete all predictions for a specific date using datetime string comparison"""
         print(f"[DEBUG] Deleting predictions for date: {date}")
         try:
             self._apply_rate_limiting_delay()
-            # Use simple date string comparison for better compatibility
-            self.supabase.table('weather_predictions').delete().eq('prediction_date', date).execute()
+            # Use datetime field for filtering instead of prediction_date
+            # Convert date to datetime range
+            start_datetime = f"{date}T00:00:00"
+            end_datetime = f"{date}T23:59:59"
+            
+            # Delete predictions between start and end datetime
+            self.supabase.table('weather_predictions').delete().gte('datetime', start_datetime).lte('datetime', end_datetime).execute()
             print(f"[DEBUG] Successfully deleted predictions for date: {date}")
             return True
         except Exception as e:
