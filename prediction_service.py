@@ -10,8 +10,17 @@ import pytz
 import traceback
 import sys
 import random
+import signal
 
 print("Starting import of modules: SUCCESS")
+
+class TimeoutError(Exception):
+    """Exception raised when execution time exceeds the limit."""
+    pass
+
+def timeout_handler(signum, frame):
+    """Signal handler for timeout."""
+    raise TimeoutError("Execution exceeded time limit")
 
 class WeatherPredictor:
     def __init__(self, supabase_url, supabase_key, api_key, location, models_dir='models'):
@@ -506,15 +515,29 @@ class WeatherPredictor:
             return False
 
 def main():
-    """Main function to run the weather prediction service once"""
+    """Main function to run the weather prediction service - now with execution timeout"""
     # Configuration
     print("[DEBUG] Starting main function")
+    
+    # Set up timeout (30 minutes = 1800 seconds)
+    timeout_duration = 30 * 60
+    print(f"[DEBUG] Setting up execution timeout of {timeout_duration} seconds (30 minutes)")
+    
+    # Set up the alarm signal handler
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_duration)
+    
     print("[DEBUG] Reading environment variables")
     
     SUPABASE_URL = os.getenv('SUPABASE_URL')
     SUPABASE_KEY = os.getenv('SUPABASE_KEY')
     API_KEY = os.getenv('API_KEY')
     LOCATION = os.getenv('LOCATION')
+    
+    print(f"[DEBUG] Environment variables read - SUPABASE_URL: {'set' if SUPABASE_URL else 'NOT SET'}")
+    print(f"[DEBUG] Environment variables read - SUPABASE_KEY: {'set' if SUPABASE_KEY else 'NOT SET'}")
+    print(f"[DEBUG] Environment variables read - API_KEY: {'set' if API_KEY else 'NOT SET'}")
+    print(f"[DEBUG] Environment variables read - LOCATION: {LOCATION if LOCATION else 'NOT SET'}")
     
     if not all([SUPABASE_URL, SUPABASE_KEY, API_KEY, LOCATION]):
         print("[ERROR] Missing required environment variables")
@@ -525,6 +548,7 @@ def main():
         predictor = WeatherPredictor(SUPABASE_URL, SUPABASE_KEY, API_KEY, LOCATION)
         print("[DEBUG] WeatherPredictor initialized successfully")
         
+        # Run a single prediction cycle and exit
         print("[DEBUG] Running prediction cycle")
         start_time = datetime.now()
         success = predictor.run_prediction_cycle()
@@ -532,17 +556,29 @@ def main():
         duration = (end_time - start_time).total_seconds()
         
         if success:
-            print(f"[DEBUG] Prediction cycle completed in {duration:.2f} seconds")
-            return 0
+            print(f"[DEBUG] Prediction cycle completed successfully in {duration:.2f} seconds")
+            print("[DEBUG] Prediction service completed successfully. Exiting now.")
+            # Exit with success code
+            sys.exit(0)
         else:
             print("[ERROR] Prediction cycle failed")
-            return 1
+            # Exit with error code
+            sys.exit(1)
             
+    except TimeoutError:
+        print(f"\n[ERROR] Execution timed out after {timeout_duration} seconds (30 minutes)")
+        sys.exit(2)
+    except KeyboardInterrupt:
+        print("\n[DEBUG] Service stopped by user")
+        sys.exit(0)
     except Exception as e:
-        print(f"\n[ERROR] Critical error: {e}")
+        print(f"\n[ERROR] Critical error in main loop: {e}")
         print(f"[DEBUG] Stack trace: {traceback.format_exc()}")
-        return 1
-    
+        sys.exit(1)
+    finally:
+        # Cancel the alarm
+        signal.alarm(0)
+
 if __name__ == "__main__":
     print("[DEBUG] Script starting")
     main()
