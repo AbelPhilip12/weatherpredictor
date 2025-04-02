@@ -11,6 +11,7 @@ import traceback
 import sys
 import random
 import signal
+from huggingface_hub import hf_hub_download, snapshot_download
 
 print("Starting import of modules: SUCCESS")
 
@@ -23,48 +24,85 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Execution exceeded time limit")
 
 class WeatherPredictor:
-    def __init__(self, supabase_url, supabase_key, api_key, location, models_dir='models'):
+    def __init__(self, supabase_url, supabase_key, api_key, location, models_dir='models', hf_repo_id='your_username/weather-models'):
         """
-        Initialize WeatherPredictor with real-time data integration
+        Initialize WeatherPredictor with Hugging Face model storage
         
         Args:
             supabase_url (str): Supabase project URL
             supabase_key (str): Supabase API key
             api_key (str): Visual Crossing API key
             location (str): Location for weather prediction
-            models_dir (str): Directory containing trained models
+            models_dir (str): Directory to store downloaded models
+            hf_repo_id (str): Hugging Face repository ID for models
         """
-        print(f"[DEBUG] Initializing WeatherPredictor with location: {location} and models_dir: {models_dir}")
-        print(f"[DEBUG] Current working directory: {os.getcwd()}")
-        print(f"[DEBUG] Directory contents: {os.listdir('.')}")
-        
-        if os.path.exists(models_dir):
-            print(f"[DEBUG] Models directory exists: {models_dir}")
-            print(f"[DEBUG] Models directory contents: {os.listdir(models_dir)}")
-        else:
-            print(f"[ERROR] Models directory does not exist: {models_dir}")
+        print(f"[DEBUG] Initializing WeatherPredictor with location: {location}")
+        print(f"[DEBUG] Models will be stored in: {models_dir}")
         
         self.models_dir = models_dir
+        self.hf_repo_id = hf_repo_id
+        os.makedirs(self.models_dir, exist_ok=True)
+        
         print("[DEBUG] Initializing Supabase client")
         self.supabase = create_client(supabase_url, supabase_key)
         print("[DEBUG] Supabase client initialized")
         self.api_key = api_key
         self.location = location
-        print("[DEBUG] About to load models")
-        self.load_models()
-        print("[DEBUG] Models loaded successfully")
         
         # Set timezone to IST
         self.timezone = pytz.timezone('Asia/Kolkata')
         # Rate limiting parameters for free tier
         self.min_db_delay = 0.5  # minimum delay in seconds
         self.max_db_delay = 2.0  # maximum delay in seconds
+        
+        # Load models
+        print("[DEBUG] About to load models")
+        self.load_models()
+        print("[DEBUG] Models loaded successfully")
         print("[DEBUG] WeatherPredictor initialization complete")
 
-    def load_models(self):
-        """Load pre-trained models from local directory"""
-        print(f"[DEBUG] Loading models from {self.models_dir}")
+    def download_model(self, filename):
+        """Download a single model from Hugging Face Hub"""
+        print(f"[DEBUG] Downloading model: {filename}")
         try:
+            model_path = hf_hub_download(
+                repo_id=self.hf_repo_id,
+                filename=filename,
+                cache_dir=self.models_dir,
+                local_dir=self.models_dir,
+                local_dir_use_symlinks=False
+            )
+            print(f"[DEBUG] Model downloaded to: {model_path}")
+            return model_path
+        except Exception as e:
+            print(f"[ERROR] Error downloading model {filename}: {e}")
+            print(f"[DEBUG] Stack trace: {traceback.format_exc()}")
+            raise
+
+    def load_models(self):
+        """Load pre-trained models from Hugging Face Hub"""
+        print(f"[DEBUG] Loading models from Hugging Face Hub: {self.hf_repo_id}")
+        try:
+            # List of model files we need
+            model_files = [
+                'temp_model.joblib',
+                'weather_model.joblib',
+                'conditions_model.joblib',
+                'scaler.joblib',
+                'label_encoder.joblib'
+            ]
+            
+            # Download all models (this will cache them locally)
+            print("[DEBUG] Starting model download from Hugging Face Hub")
+            snapshot_download(
+                repo_id=self.hf_repo_id,
+                local_dir=self.models_dir,
+                allow_patterns="*.joblib",
+                local_dir_use_symlinks=False
+            )
+            print("[DEBUG] Model download completed")
+            
+            # Load each model
             print(f"[DEBUG] Loading temp_model from {os.path.join(self.models_dir, 'temp_model.joblib')}")
             self.temp_model = joblib.load(os.path.join(self.models_dir, 'temp_model.joblib'))
             print("[DEBUG] temp_model loaded")
@@ -86,10 +124,6 @@ class WeatherPredictor:
             print("[DEBUG] label_encoder loaded")
             
             print("[DEBUG] All models loaded successfully")
-        except FileNotFoundError as e:
-            print(f"[ERROR] Model loading error: {e}")
-            print(f"[DEBUG] Stack trace: {traceback.format_exc()}")
-            raise
         except Exception as e:
             print(f"[ERROR] Unexpected error loading models: {e}")
             print(f"[DEBUG] Stack trace: {traceback.format_exc()}")
@@ -538,11 +572,13 @@ def main():
     SUPABASE_KEY = os.getenv('SUPABASE_KEY')
     API_KEY = os.getenv('API_KEY')
     LOCATION = os.getenv('LOCATION')
+    HF_TOKEN = os.getenv('HF_TOKEN')
     
     print(f"[DEBUG] Environment variables read - SUPABASE_URL: {'set' if SUPABASE_URL else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - SUPABASE_KEY: {'set' if SUPABASE_KEY else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - API_KEY: {'set' if API_KEY else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - LOCATION: {LOCATION if LOCATION else 'NOT SET'}")
+    print(f"[DEBUG] Environment variables read - HF_TOKEN: {'set' if HF_TOKEN else 'NOT SET'}")
     
     if not all([SUPABASE_URL, SUPABASE_KEY, API_KEY, LOCATION]):
         print("[ERROR] Missing required environment variables")
