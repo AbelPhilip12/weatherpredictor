@@ -40,7 +40,7 @@ jobs:
               repo_id='your_username/weather-models',
               local_dir='./models',
               token='$HF_TOKEN',
-              ignore_patterns=['*.md', '*.txt']  # Skip unnecessary files
+              ignore_patterns=['*.md', '*.txt']  # Skip unnecessary file
           )
           "
 
