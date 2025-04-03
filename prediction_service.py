@@ -24,7 +24,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Execution exceeded time limit")
 
 class WeatherPredictor:
-    def __init__(self, supabase_url, supabase_key, api_key, location, models_dir='models', hf_repo_id='your_username/weather-models'):
+    def __init__(self, supabase_url, supabase_key, api_key, location, models_dir='models', hf_repo_id=None):
         """
         Initialize WeatherPredictor with Hugging Face model storage
         
@@ -40,7 +40,9 @@ class WeatherPredictor:
         print(f"[DEBUG] Models will be stored in: {models_dir}")
         
         self.models_dir = models_dir
-        self.hf_repo_id = hf_repo_id
+        self.hf_repo_id = hf_repo_id or os.getenv('HF_REPO_ID', 'abin-varghese/weather_models')
+        print(f"[DEBUG] Using Hugging Face repo: {self.hf_repo_id}")
+        
         os.makedirs(self.models_dir, exist_ok=True)
         
         print("[DEBUG] Initializing Supabase client")
@@ -573,12 +575,14 @@ def main():
     API_KEY = os.getenv('API_KEY')
     LOCATION = os.getenv('LOCATION')
     HF_TOKEN = os.getenv('HF_TOKEN')
+    HF_REPO_ID = os.getenv('HF_REPO_ID', 'abin-varghese/weather_models')
     
     print(f"[DEBUG] Environment variables read - SUPABASE_URL: {'set' if SUPABASE_URL else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - SUPABASE_KEY: {'set' if SUPABASE_KEY else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - API_KEY: {'set' if API_KEY else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - LOCATION: {LOCATION if LOCATION else 'NOT SET'}")
     print(f"[DEBUG] Environment variables read - HF_TOKEN: {'set' if HF_TOKEN else 'NOT SET'}")
+    print(f"[DEBUG] Environment variables read - HF_REPO_ID: {HF_REPO_ID}")
     
     if not all([SUPABASE_URL, SUPABASE_KEY, API_KEY, LOCATION]):
         print("[ERROR] Missing required environment variables")
@@ -586,7 +590,7 @@ def main():
     
     try:
         print("[DEBUG] Initializing WeatherPredictor")
-        predictor = WeatherPredictor(SUPABASE_URL, SUPABASE_KEY, API_KEY, LOCATION)
+        predictor = WeatherPredictor(SUPABASE_URL, SUPABASE_KEY, API_KEY, LOCATION, hf_repo_id=HF_REPO_ID)
         print("[DEBUG] WeatherPredictor initialized successfully")
         
         # Run a single prediction cycle and exit
