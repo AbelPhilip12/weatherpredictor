@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: '3.9'  # Use Python 3.9
 
-      # Install dependencies including huggingface_hub
+      # Install dependencies including huggingface_hubb
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
