@@ -3,8 +3,7 @@ on:
   push:
     branches:
       - master  # Trigger on push to the master branch
-  schedule:
-    - cron: '0 */4 * * *'  # Run every 4 hours (fixed the syntax error)
+     # Run every 4 hours (fixed the syntax error)
 jobs:
   deploy:
     runs-on: ubuntu-latest
